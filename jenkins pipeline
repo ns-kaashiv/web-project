@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+
+    stages {
+        stage ("Codeout Check") {
+            steps {
+                cleanWs()
+                git branch: 'main', url: 'https://github.com/ns-kaashiv/todo.git'
+            }
+        }
+        
+        stage ("Build") {
+            steps {
+                bat 'mvn package'
+            }
+        }
+        
+        stage ("Test") {
+            steps {
+                bat 'mvn test'
+
+            }
+        }
+        
+        stage ("Deploy") {
+            steps {
+                deploy adapters: [tomcat9(credentialsId: 'tomcat', path: '', url: 'http://localhost:8080/')], contextPath: null, onFailure: false, war: '**/*.war'
+            }
+        }
+    }
+
+    post{
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Deployment successful'
+        }
+        failure {
+            echo 'Build or deployment failed'
+        }
+    }
+}
