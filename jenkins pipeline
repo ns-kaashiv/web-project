@@ -5,7 +5,13 @@ pipeline {
         stage ("Codeout Check") {
             steps {
                 cleanWs()
+                // public
                 git branch: 'main', url: 'https://github.com/ns-kaashiv/todo.git'
+
+                //private
+                withCredentials([string(credentialsId: 'github-pat', variable: 'GITHUB-PAT')]) {
+                    git credentialsId: 'github-pat', branch: 'main', url: 'https://github.com/ns-kaashiv/todo.git'
+                }
             }
         }
         
