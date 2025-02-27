@@ -1,0 +1,74 @@
+Jenkins Installation
+--------------------
+
+yum update –y
+
+sudo wget -O /etc/yum.repos.d/jenkins.repo \
+    https://pkg.jenkins.io/redhat-stable/jenkins.repo
+
+rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+
+yum upgrade
+
+dnf install java-21-amazon-corretto -y
+
+yum install jenkins -y
+
+systemctl enable Jenkins
+
+systemctl start Jenkins
+
+
+Maven Installation
+------------------
+
+wget https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz
+
+tar xzvf apache-maven-3.9.9-bin.tar.gz -C /opt
+
+export PATH=${PATH:+$PATH:}/opt/apache-maven-3.9.9/bin
+
+
+Tomcat Installation
+-------------------
+
+wget https://dlcdn.apache.org/tomcat/tomcat-10/v10.1.36/bin/apache-tomcat-10.1.36.tar.gz
+
+tar xzvf apache-tomcat-10.1.36.tar.gz -C /opt
+
+export PATH=${PATH:+$PATH:}/opt/apache-tomcat-10.1.36/bin
+
+cd /opt/apache-tomcat-10.1.36/conf
+
+nano server.xml [PORT Change 8080 to 8000]
+
+nano tomcat-users.xml [open file and add this line] 
+<user username="admin" password="admin123" roles="admin-gui,manager-gui,manager-script"/>
+
+nano webapps/manager/META-INF/context.xml [change *]
+allow=".*"
+
+catalina.sh start (OR) catalina.sh stop
+
+startup.sh (OR) shutdown.sh
+
+
+Apache Installation
+--------------------
+
+yum install httpd
+
+nano /etc/httpd/conf.d/proxypass.conf
+
+ProxyPass / http://localhost:8000/todo/
+ProxyPassReverse / http://localhost:8000/todo/
+
+systemctl restart httpd
+
+
+Git Installation
+----------------
+
+yum install git
+
+which git
