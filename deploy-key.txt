@@ -1,0 +1,13 @@
+ssh-keygen -t ed25519 -C "deploy-key" -f ~/.ssh/github-deploy-key
+
+cat ~/.ssh/github-deploy-key.pub
+
+nano ~/.ssh/config
+
+Host github-deploy
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/github-deploy-key
+  IdentitiesOnly yes
+
+git clone git@github-deploy:your-username/your-repo.git
