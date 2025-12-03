@@ -1,0 +1,32 @@
+pipeline {
+    agent { label 'ec2-fleet' }
+
+    tools {
+        maven 'Maven'
+    }
+
+    stages {
+        stage('Clone') {
+            steps {
+                deleteDir()
+                git branch: 'main', url: 'https://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@github.com/ns-kaashiv/todo.git'
+            }
+        }
+
+        stage('Build & Test') {
+            steps {
+                sh 'mvn package'
+            }
+        }
+
+        stage('Deploy to Tomcat') {
+            steps {
+                sh '''
+                curl -u admin:admin123 \
+                     --upload-file target/todo.war \
+                     "http://localhost:8080/manager/text/deploy?path=/todo&update=true"
+                '''
+            }
+        }
+    }
+}
