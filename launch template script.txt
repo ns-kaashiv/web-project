@@ -1,0 +1,133 @@
+#!/bin/bash
+set -eux
+
+# Set swap file size to increase by 2GB
+SWAP_SIZE=2G
+SWAP_FILE=/swapfile
+
+# Create a swap file of the specified size
+dd if=/dev/zero of=$SWAP_FILE bs=1M count=2048
+
+# Set the proper permissions
+chmod 600 $SWAP_FILE
+
+# Set up the swap area
+mkswap $SWAP_FILE
+
+# Enable the swap
+swapon $SWAP_FILE
+
+# Ensure the swap is permanent by adding it to fstab
+grep -q "$SWAP_FILE" /etc/fstab || echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
+
+# Verify swap status
+swapon --show
+
+# Increase /tmp space
+mount -t tmpfs -o size=2G tmpfs /tmp
+
+# Update system
+dnf update -y
+
+# Install Java 21 (Amazon Corretto)
+dnf install -y java-21-amazon-corretto java-21-amazon-corretto-devel
+
+# Install Git
+dnf install -y git
+
+# Install Maven
+MAVEN_URL=https://dlcdn.apache.org/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.tar.gz
+
+curl -fsSL ${MAVEN_URL} -o /tmp/maven.tar.gz
+mkdir -p /opt/maven
+tar -xzf /tmp/maven.tar.gz -C /opt/maven --strip-components=1
+
+cat >/etc/profile.d/maven.sh <<EOF
+export M2_HOME=/opt/maven
+export MAVEN_HOME=/opt/maven
+export PATH=\$PATH:/opt/maven/bin
+EOF
+
+chmod +x /etc/profile.d/maven.sh
+source /etc/profile.d/maven.sh
+
+# Install Apache HTTPD
+dnf install -y httpd
+systemctl enable httpd
+systemctl start httpd
+
+# Reverse Proxy
+cat > /etc/httpd/conf.d/proxypass.conf <<EOF
+ProxyPass / http://localhost:8080/todo/
+ProxyPassReverse / http://localhost:8080/todo/
+EOF
+
+systemctl restart httpd
+
+# Install Latest Tomcat
+TOMCAT_URL=https://dlcdn.apache.org/tomcat/tomcat-11/v11.0.14/bin/apache-tomcat-11.0.14.tar.gz
+
+curl -fsSL ${TOMCAT_URL} -o /tmp/tomcat.tar.gz
+
+mkdir -p /opt/tomcat
+tar -xzf /tmp/tomcat.tar.gz -C /opt/tomcat --strip-components=1
+
+# Add Tomcat Manager user
+ADMIN_USER="admin"
+ADMIN_PASS="admin123"
+
+cat > /opt/tomcat/conf/tomcat-users.xml <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<tomcat-users>
+    <!-- Admin user -->
+    <role rolename="manager-gui"/>
+    <role rolename="admin-gui"/>
+    <role rolename="manager-script"/>
+    <role rolename="manager-jmx"/>
+    <role rolename="manager-status"/>
+    <user username="$ADMIN_USER" password="$ADMIN_PASS"
+          roles="manager-gui,admin-gui,manager-script,manager-jmx,manager-status"/>
+</tomcat-users>
+EOF
+
+cat > /opt/tomcat/webapps/host-manager/META-INF/context.xml  <<EOF
+<Context antiResourceLocking="false" privileged="true" ignoreAnnotations="true">
+  <CookieProcessor className="org.apache.tomcat.util.http.Rfc6265CookieProcessor"
+                   sameSiteCookies="strict" />
+  <Valve className="org.apache.catalina.valves.RemoteAddrValve"
+         allow="0.0.0.0"/>
+  <Manager sessionAttributeValueClassNameFilter="java\.lang\.(?:Boolean|Integer|Long|Number|String)|org\.apache\.catalina\.filters\.CsrfPreventionFilter\$LruCache(?:\$1)?|java\.util\.(?:Linked)?HashMap"/>
+EOF
+
+# Permissions
+groupadd tomcat
+useradd -M -s /bin/nologin -g tomcat tomcat
+chown -R tomcat:tomcat /opt/tomcat
+
+# Create Tomcat systemd service
+cat >/etc/systemd/system/tomcat.service <<EOF
+[Unit]
+Description=Apache Tomcat Server
+After=network.target
+
+[Service]
+Type=forking
+
+User=tomcat
+Group=tomcat
+
+Environment="JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto"
+Environment="CATALINA_HOME=/opt/tomcat"
+
+ExecStart=/opt/tomcat/bin/startup.sh
+ExecStop=/opt/tomcat/bin/shutdown.sh
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable tomcat
+systemctl start tomcat
